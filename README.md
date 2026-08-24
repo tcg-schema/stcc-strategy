@@ -1,60 +1,65 @@
-# ST:CC Strategy Compendium
+# ST:CC Card Dataset
 
-Community strategy resource for **Star Trek: Captain's Chair**, live at
-**https://periodic-agent.github.io/stcc-strategy/**
+Every card in **Star Trek: Captain's Chair** (WizKids) as linked data, mapped onto
+[TCG Schema Core](https://www.tcg-schema.org/core.ttl).
 
-Strategy content by **Matthew McCue (mdmccu2)**, reproduced verbatim from his BGG forum guides with permission. Compiled and formatted by **Periodic_agent**. Card images © WizKids.
+Live at **https://tcg-schema.github.io/stcc-strategy/**
 
-## What's live — 28 guides + the Card Scanner
+## The root
 
-- **6 Core Box captain guides** — Picard, Shran, Koloth, Sisko, Sela, Burnham
-- **6 Core Box market guides** — Persons, Allies, Ships, Cargo, Locations, Encounters & Incidents
-- **3 To Boldly Go captain guides** — Georgiou, Soval, Kirk
-- **6 To Boldly Go market guides** — same decks, expansion box
-- **Second Contact** — Market, Locations & Rewards guide
-- **6 strategy guides** — Solo & Conspiracy, 5-Year Mission, Playing Against Picard, Combining Markets, Promo Pack 2, Wesley Crusher
-- **Card Scanner** — searchable database of **every card in every box**: Core, To Boldly Go, Second Contact, and both promo packs, all tagged and scanned. Filter by pills or type queries like `trait:klingon suit:person`, `skill:military`, `-deck:sisko`. The community tagging effort is complete — contributors are credited on the site.
+Vocabulary and data share one root, **`https://tcg-schema.org/stcc`**. Vocabulary terms
+are CamelCase fragments, instances are prefixed fragments, and **no IRI names the host
+that serves the files** — so the graph survives the site moving.
 
-## Pending
-
-- Remaining To Boldly Go captain guides (Archer, Rebner, Khan)
-- Second Contact captain guides (Pike, Riker, Freeman)
-
-## Using the data and images (yes, you're welcome to)
-
-The card database and card images are a community resource. Link them in
-forum posts, Discord, spreadsheets, or your own tools; that's what they're
-for. Use the site URLs (stable, CDN-served), not raw git links:
-
-- **Card data:** `https://periodic-agent.github.io/stcc-strategy/box1.json`
-  (same pattern for `box2`, `box3`, `promo1`, `promo2`). One JSON object per
-  card: name, suit, deck, traits, skill/focus icons, image filename.
-- **Card images:** `https://periodic-agent.github.io/stcc-strategy/img/box1/<card-name>.jpg`
-  (folders `box1`..`box3`, `promo1`, `promo2`). Filenames are lowercase,
-  hyphenated, deck-prefixed for crew cards: `sisko-garak.jpg`,
-  `picard-jean-luc-picard.jpg`. The easiest way to grab a link: find the
-  card in the [Card Scanner](https://periodic-agent.github.io/stcc-strategy/cards.html)
-  and copy the image address.
-
-**Filenames are permanent.** Once a card image ships, its URL never changes,
-so your links won't rot.
-
-Card images © WizKids. A pointer back to the Compendium is appreciated but
-not required.
-
-## Repo layout
-
-| Path | Contents |
+| IRI | |
 |---|---|
-| `*.html` | Guides + index + Card Scanner (root, GitHub Pages) |
-| `css/stcc.css` | Shared design system (themes via body class) |
-| `img/box1..box3`, `img/promo1..2` | Card image library, one file per card |
-| `img/guides/` | Captain boards and chart images per guide |
-| `box1..box3.json`, `promo1..2.json` | Card database (repo root) |
-| `text/` | Canonical text per guide (verification baseline) |
-| `data/` | Strategy index for the Scanner's guide links |
-| `tools/` | Build, verify, and maintenance scripts |
-| `WORKFLOW.md` | Conventions and procedures (authoritative) |
-| `ISSUES.md` | Improvement tracker |
+| `…/stcc#SuitPerson`, `…/stcc#TraitCardassian` | vocabulary terms |
+| `…/stcc#suit`, `…/stcc#victoryPoints` | vocabulary properties |
+| `…/stcc#card-sisko-garak` | a card |
+| `…/stcc#printing-core-sisko-garak` | one printing of it |
+| `…/stcc#set-core`, `…/stcc#pool-core-sisko` | a set, a card pool |
 
-Corrections and card photos welcome — open an issue or find Periodic_agent on the ST:CC Discord.
+## Files
+
+| URL | Contents |
+|---|---|
+| `data/stcc-ontology.ttl` | The vocabulary: 14 classes, 22 properties, 107 terms in 6 term sets (Turtle) |
+| `data/cards.jsonld` | The graph: 556 cards, 610 printings, ~20k triples (JSON-LD) |
+| `data/stcc-context.jsonld` | The JSON-LD context the graph is written against |
+| `card/<id>.html` | One page per card, carrying the same statements as microdata |
+| `box1.json` … `promo2.json` | The card database itself — the editing surface everything else is built from |
+| `img/box1/<card>.jpg` | Card images, one file per card (`box1`..`box3`, `promo1`, `promo2`) |
+
+**Filenames are permanent.** Once a card image ships, its URL never changes.
+
+## Using it
+
+The data is a community resource — link it, query it, build on it.
+
+```bash
+curl -s https://tcg-schema.github.io/stcc-strategy/data/cards.jsonld | jq \
+  '.["@graph"][] | select(.suit == "stcc:SuitPerson") | .name'
+```
+
+A record in the card JSONs is a **printing**, not a card: printings sharing an `id` are
+printings of one `tcg:Card`, whose card-level facts are the resolved view (the updated
+printing if there is one, else the earliest box). A printing whose printed face differs
+keeps its own `stcc:printed*` statements, so errata are readable at both levels.
+
+## Regenerating
+
+The JSONs are the only thing edited by hand. Everything else is generated:
+
+```bash
+python3 tools/build_ontology.py --report        # ttl + jsonld
+python3 tools/build_card_pages.py               # card pages, index, sitemap
+python3 tools/test_ontology.py --core core.ttl  # gate (needs rdflib)
+```
+
+## The strategy guides
+
+Matthew McCue's strategy guides and the Card Scanner are the **ST:CC Strategy
+Compendium**: https://periodic-agent.github.io/stcc-strategy/ — each card page here links
+to the guide sections that discuss it.
+
+Card images © WizKids. Card data compiled by Periodic_agent with the ST:CC community.

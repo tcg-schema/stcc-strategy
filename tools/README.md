@@ -1,54 +1,50 @@
-# tools/ — session tooling for the ST:CC Compendium
+# tools/ — dataset tooling
 
-Scripts built during the 04 Jul 2026 consolidation sessions. They are the
-*methods* behind the CSS consolidation, the image migration, and the card
-database seeding. Any future session (any Claude model) should adapt these
-instead of reinventing them.
+The card JSONs at the repo root are the editing surface. Everything the site serves is
+generated from them by the scripts here, and **generators ship with their output**: a
+push of generated files without its generator is incomplete.
 
-**Path note:** these were written inside a specific sandbox; check the I/O
-paths at the top of each script and adjust before running. All are Python 3,
-stdlib except PIL (montage, image conversion) and openpyxl (workbook).
+Python 3, stdlib only unless noted.
+
+## The semantic layer
 
 | Script | Purpose |
 |---|---|
-| `parse.py` | Extract + tokenize every guide's `<style>` block (@media-aware); normalize legacy theme vars (`--blue`/`--red`/`--andorian`/`--amber`) to the semantic `--accent` family. Basis for any future CSS folding into css/stcc.css. |
-| `convert.py` | Convert a guide from inline CSS to the shared stylesheet: swap `<style>` for the stcc.css link, keep only legit per-guide inline rules, set the theme body class. |
-| `verify.py` | Rendering safety net: computes effective styles per selector (vars expanded through theme env) before/after a conversion and diffs per property; flags shared rules newly applying to a page. Run after ANY stylesheet or conversion change. |
-| `migrate_shran.py` | First image-migration pilot (h3-sectioned captain guide). Superseded by migrate_captains.py but kept as the simplest worked example. |
-| `migrate_captains.py` | Card-image migration for captain guides: boards extracted to img/guides/, tabletop scans removed, per-section library images inserted (h3 or bold-lead paragraph styles), scan-alt fallback rows, unmatched-name reporting. |
-| `migrate_markets.py` | Same for market guides; handles Promo Pack suffixes and img/promo1 lookups. |
-| `make_montage.py` | Tile card images into labeled 2x2 grids so a session can read 4 card faces per image view. The efficiency trick behind database seeding. |
-| `carddata.py` / `carddata2.py` | Structured record of all Box 2/3 cards as read from card faces (carddata2 is the final merged form). Raw material for box2.json / box3.json, independent of the Google Sheet. |
-| `build_workbook.py` | Generate stcc-card-database.xlsx from carddata2: 4 tabs, dropdowns, status colors, HYPERLINK image links. NOTE: the live sheet on Periodic_agent's Drive is canonical; never regenerate wholesale over it (see WORKFLOW.md, Card database update cycle). |
-| `build_guide.py` | Build a guide from a BGG SingleFile capture + `configs/<slug>.json`: verbatim text, image decode to site naming, TOC, card-id H3 anchors (`h3_ids`), video section. Writes to `out/`, never in place. |
-| `verify_guide.py` | Machine gate before any guide push: page text vs `text/<slug>.txt` exactly, image refs, anchors, HTML balance, footer/lightbox/GoatCounter furniture. Exit 1 = do not push. |
-| `extract_text.py` | Canonical text extractor, single source of truth for both generating and verifying `text/<slug>.txt`. The post-ship edit loop: edit the HTML, `python3 tools/extract_text.py <guide>.html -o text/<slug>.txt`, then `verify_guide.py`. |
-| `fill_image_filenames.py` | Fill `filename` in a box JSON from scans on disk, keyed on the `id` == filename-stem invariant. `original` variants only (reprints resolve to the earliest printing's art). Use when a guide import lands images ahead of the community sheet's image column. |
-| `build_strategy_index.py` | Cross-reference every card against every guide -> `data/strategy-index.json` (snippets, lazy-loaded) + `data/strategy-cards.json` (badge counts, loaded at start-up). Config in `strategy_index_config.json`. `--report` for coverage, `--check` for CI staleness. |
-| `patch_scanner_strategy.py` | Apply the Strategy badge + guide-passage drawer to `cards.html`. Idempotent, anchor-asserting; builds output in memory before writing (a failed patch must never truncate the scanner). |
-| `test_scanner.mjs` | Headless DOM-shim test for the scanner: image resolution rules, lightbox integrity, inline-handler scope, strategy badge/drawer wiring, and index link integrity (guides + anchors + card ids). Run from repo root: `node tools/test_scanner.mjs .` Requires a full checkout (sparse clones without img/ false-fail the lightbox check). |
-| `strategy-drawer-preview.html` | Standalone preview of the badge + drawer against live data; served at /tools/ on Pages, not linked from the site. |
+| `build_ontology.py` | Maps the five card JSONs onto TCG Schema Core → `data/stcc-ontology.ttl` (vocabulary, term sets derived from the data so they cannot drift) + `data/cards.jsonld` (556 cards, 610 printings). `--check` exits 1 if the committed output is stale; `--report` prints coverage and divergence. |
+| `build_card_pages.py` | Reads the graph → `card/<id>.html` (556 microdata pages), `card/index.html`, `index.html` (the hub), `dataset.html` (redirect stub) and `sitemap.xml`. Page content comes from the same builder as the graph, so a page cannot describe a card differently. `--check`. |
+| `test_ontology.py` | Gate. Parses both files as RDF and asserts the graph says what the vocabulary claims — 18 assertions including domain/range conformance, one-node-per-icon, and that no IRI names a serving host. `--core core.ttl` adds alignment checks against TCG Schema Core. **Requires rdflib.** |
 
-## Guide config lifecycle (why replace lists stay short)
+## Card data
 
-A `configs/<slug>.json` is the record of one **import**, not a running patch
-file for the page. The `replace` list carries only the corrections approved
-*before* the guide shipped, applied at build time so the first published text
-is the approved text.
+| Script | Purpose |
+|---|---|
+| `build_box2_from_sheet.py` | Rebuilds a box JSON from the community sheet. Runs the four variant checks; two are gates. Fix the **sheet**, never the JSON. Needs openpyxl. |
+| `build_text_from_sheet.py` | Imports card text (operation strips) from the sheet into every box JSON. Read-only on the sheet. Needs openpyxl. |
+| `build_text_workbook.py` / `build_workbook.py` | Generate the community workbook from the JSONs. Needs openpyxl. |
+| `carddata.py` / `carddata2.py` | Structured record of Box 2/3 cards as read from card faces; raw material for the JSONs, independent of the sheet. |
+| `fill_image_filenames.py` | Fills `filename` from scans on disk, keyed on the `id` == filename-stem invariant. |
+| `split_promo_json.py` | Historical: split the promo rows out of the era box JSONs into `promo1.json` / `promo2.json`. |
+| `extract_strip_colors.py` | Samples operation-strip colours from card scans → `data/strip-palette.json`. |
 
-Once a guide is live, **the HTML is the source of truth** (WORKFLOW Rule 1c).
-McCue made Periodic_agent his editor of record, so a later correction is made
-directly in the guide HTML, followed by
+## Images
 
-```
-python3 tools/extract_text.py <guide>.html -o text/<slug>.txt
-python3 tools/verify_guide.py <guide>.html text/<slug>.txt --img-root .
-```
+| Script | Purpose |
+|---|---|
+| `shrink_card_images.py` | The filter step for every image import: max width 1170 px, JPEG q80, progressive. Skips anything already within the standard. Needs PIL. |
+| `make_montage.py` | Tiles card images into labelled grids so a session can read several card faces per image view. Needs PIL. |
+| `../extract_cards.py` | Delineates and deskews individual cards out of a multi-card scan. Needs PIL. |
 
-and both files go in one reviewed commit. Nothing is added to the config. This
-is what keeps replace lists from growing into an editing history that has to be
-replayed to understand the page.
+## Publishing
 
-The consequence, stated so nobody trips on it: **rebuilding a shipped guide
-from its capture reproduces the import, not the live page.** Diff before
-copying a rebuild over a shipped file.
+| Script | Purpose |
+|---|---|
+| `push_gate.py` | Standalone anonymity gate: scans a file, a directory or a repo's whole git history against a denylist. Stdlib only; vendor it anywhere. |
+| `../push_to_github.py` | The HTTPS/PAT push pipeline with the fail-closed PII gate. **Hardcoded to `periodic-agent/stcc-strategy`** — this repo now pushes over SSH to `tcg-schema/stcc-strategy`, so the script is kept for the gate it carries and for the compendium repo. See WORKFLOW.md. |
+
+## Kept but not runnable here
+
+`build_strategy_index.py` + `strategy_index_config.json` generate
+`data/strategy-index.json` / `strategy-cards.json`, which the card pages use to link out
+to the guide sections that discuss each card. The generator reads **guide HTML**, which
+lives in the compendium repo now — run it there and copy the two JSONs across. It ships
+here because its output does.

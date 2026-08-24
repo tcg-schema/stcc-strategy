@@ -1,31 +1,10 @@
 User-agent: *
 Allow: /
 
-# Fan-site pages, the Card Scanner, and card images are for crawling.
-# Internal project docs and tooling are public but not search material.
-Disallow: /WORKFLOW.md
-Disallow: /PROJECT_BRIEF.md
-Disallow: /ISSUES.md
-Disallow: /README.md
+# This site IS the dataset: the vocabulary, the card graph, the card JSONs and one
+# page per card are all meant to be fetched and indexed. Only the build tooling and
+# the internal workflow doc are kept out of search.
 Disallow: /tools/
-Disallow: /text/
-Disallow: /mockups/
-
-# The semantic layer is meant to be fetched: vocabulary, card graph and the
-# JSON-LD context are published data, not internal tooling. Everything else in
-# /data/ stays out of search.
-Allow: /data/stcc-ontology.ttl
-Allow: /data/cards.jsonld
-Allow: /data/stcc-context.jsonld
-Disallow: /data/
-Disallow: /box1.json
-Disallow: /box2.json
-Disallow: /box3.json
-Disallow: /promo1.json
-Disallow: /promo2.json
-Disallow: /push_to_github.py
-Disallow: /extract_cards.py
-Disallow: /download_allies_images.py
-Disallow: /harmless_kitten.html
+Disallow: /WORKFLOW.md
 
 Sitemap: https://tcg-schema.github.io/stcc-strategy/sitemap.xml

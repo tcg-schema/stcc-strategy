@@ -4,161 +4,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A static GitHub Pages site — the ST:CC Strategy Compendium (Star Trek: Captain's Chair) at
-https://periodic-agent.github.io/stcc-strategy/. The shipped artifacts are the `*.html` files at
-the repo root, `css/stcc.css`, the card JSONs at root, and `img/`. There is no bundler, no
-package.json, no site build step: the HTML **is** the product. Everything in `tools/` exists to
-*generate* or *verify* those files, never to be deployed.
+The **ST:CC Card Dataset**: every card in Star Trek: Captain's Chair published as linked
+data, mapped onto [TCG Schema Core](https://www.tcg-schema.org/core.ttl). Served by GitHub
+Pages at `https://tcg-schema.github.io/stcc-strategy/` from `tcg-schema/stcc-strategy`.
 
-**`WORKFLOW.md` (root, ~1100 lines) is the single source of operational truth.** It is far more
-detailed than this file. Trust it first, grep it second, and add new conventions there — this file
-is only the map. `PROJECT_BRIEF.md` covers people and permissions; `ISSUES.md` is the (mostly
-closed) improvement tracker; `tools/README.md` describes every script.
+The five card JSONs at the repo root (`box1.json`..`promo2.json`) are the **only** thing
+edited by hand. The vocabulary, the graph, the 556 card pages, the hub and the sitemap are
+all generated from them — never hand-edit those.
+
+Matthew McCue's strategy guides and the Card Scanner used to live here and were removed on
+24 Aug 2026; they are the **ST:CC Strategy Compendium** at
+`https://periodic-agent.github.io/stcc-strategy/`. Anything about guide builds, canonical
+text, the scanner or the shared design system belongs there, not here. Both are in this
+repo's git history up to `9375a4d` if something needs recovering.
+
+`WORKFLOW.md` is the single source of operational truth and is more detailed than this file.
 
 ## Environment
 
-Python 3.8 and node 16 are on PATH. The verification gates below are **stdlib-only / no npm deps**
-and run as-is. `PIL` and `openpyxl` are *not* installed here, so the image tools
-(`shrink_card_images.py`, `make_montage.py`, `build_trait_counter.py`) and the workbook/sheet tools
-(`build_text_workbook.py`, `build_text_from_sheet.py`, `build_box2_from_sheet.py`) will need them
-installed before they run.
+Python 3.8 and node 16. The generators are stdlib-only; `tools/test_ontology.py` needs
+**rdflib** (present). `PIL` and `openpyxl` are **not** installed, so the image tools and the
+sheet/workbook tools need them installed first.
 
 ## Commands
 
-Verification gates — run the relevant ones before presenting anything for push:
-
 ```bash
-# Card Scanner (cards.html) — REQUIRED before any scanner change ships.
-# node --check is NOT sufficient: it passes on a scanner whose functions are all
-# nested in init(), which silently kills every inline onclick.
-node tools/test_scanner.mjs .          # needs a full checkout; sparse clones false-fail the lightbox check
-node tools/test_scanner_query.mjs      # extracts + tests the QUERY_PARSER_START/END block
+# Regenerate, in this order — the pages are built from the graph
+python3 tools/build_ontology.py --report     # data/stcc-ontology.ttl + data/cards.jsonld
+python3 tools/build_card_pages.py            # card/, card/index.html, index.html, sitemap.xml
 
-# Guides — canonical-text fidelity gate. Exit 1 = do not push.
-python3 tools/extract_text.py <guide>.html -o text/<slug>.txt
-python3 tools/verify_guide.py <guide>.html text/<slug>.txt --img-root .
-
-# Strategy index staleness (what CI gates on) / coverage report
-python3 tools/build_strategy_index.py --check
-python3 tools/build_strategy_index.py --report
-
-# Semantic layer (RDF/JSON-LD view + card pages) — test_ontology needs rdflib
-python3 tools/build_ontology.py --check
+# Gates — run before presenting anything for push
+python3 tools/build_ontology.py --check      # committed output vs a fresh build
 python3 tools/build_card_pages.py --check
 python3 tools/test_ontology.py --core core.ttl   # curl -o core.ttl https://www.tcg-schema.org/core.ttl
-```
 
-Building things:
-
-```bash
-# New guide from a BGG SingleFile capture + its config (writes to out/, never in place)
-python3 tools/build_guide.py <singlefile.html> tools/configs/<slug>.json --out out/
-python3 tools/verify_guide.py out/<slug>.html out/text/<slug>.txt --img-root out/
-
-# Card-face asset bundle (cardface-assets.js) after changing the extractors
-python3 tools/build_scanner_v3.py cardface-assets.js
-
-# Semantic layer — graph first, then the pages that are built from it
-python3 tools/build_ontology.py --report
-python3 tools/build_card_pages.py
-
-# Card text (strips) from the community sheet into the JSONs
-python3 tools/build_text_from_sheet.py --sheet stcc-card-database.xlsx [--dry-run]
-
-# Box JSON from the community sheet (runs the four variant-validation checks)
+# Card data from the community sheet (needs openpyxl)
 python3 tools/build_box2_from_sheet.py sheet.xlsx "TBG (Box 2)" "To Boldly Go" --box1 box1.json -o box2.json
-```
-
-Pushing (see "Push pipeline" below — never without explicit approval):
-
-```bash
-python3 push_to_github.py --pii-file <denylist> --token-file <token> -m "message" <local>:<repo> ...
+python3 tools/build_text_from_sheet.py --sheet stcc-card-database.xlsx [--dry-run]
 ```
 
 ## Architecture
 
-**Guides** (`*.html` at root, one per captain/market/topic). Content is Matthew McCue's BGG prose,
-reproduced verbatim. Each guide ships with `text/<slug>.txt` — its *canonical text*, generated by
-`tools/extract_text.py` and compared line-for-line by `tools/verify_guide.py`. Guide + canonical
-file go in the **same commit**; a guide push without its canonical file is incomplete.
-`tools/configs/<slug>.json` is the record of an *import*, not a patch file: once a guide ships, the
-HTML is the source of truth and corrections edit the HTML, then regenerate the canonical text.
-Rebuilding a shipped guide from its capture reproduces the import, not the live page.
+**One root.** Vocabulary and instances are both fragments of `https://tcg-schema.org/stcc`:
+terms are CamelCase (`#SuitPerson`, `#victoryPoints`), instances are prefixed
+(`#card-sisko-garak`, `#printing-core-sisko-garak`, `#set-core`, `#pool-core-sisko`,
+`#art-core-phlox`, `#game-stcc`). That split is what tells vocabulary from instance in one
+flat fragment space, and it is enforced by the gate. **No IRI names a serving host** —
+`test_ontology.py` fails if one does.
 
-**Card database** — `box1.json`, `box2.json`, `box3.json`, `promo1.json`, `promo2.json`, all at the
-**repo root** (not `data/`). One box = one JSON = one image folder. `cards.html` fetches them at
-runtime via `BOX_SOURCES`; there is no build-time injection (`tools/build_scanner_data.py` is
-legacy). Adding a box = one line in `BOX_SOURCES` + one row in `BOX_FOLDER`
-(`core→box1, tbg→box2, 2nd→box3, promo1, promo2`) — the scanner's internal box keys are *not* disk
-paths, and conflating them is the bug that table exists to prevent.
+**Identity is rooted, location is relative.** Artwork has a rooted identity (`#art-core-phlox`)
+and a relative `schema:contentUrl` (`../img/box1/phlox.jpg`) that resolves wherever the site
+is served; card pages use relative self-referential canonicals. `sitemap.xml` is the
+exception and carries `SITE_HOST`, because a sitemap may only list URLs on the host serving it.
 
-`resolveCards()` groups printings **by `id`**, so reprints/updated cards must share the Box 1 `id`;
-the sheet importer's four validation checks (two of them hard gates) enforce that. Card `variant`
-comes from the printed number's marker: none = `original`, `•` = `reprint`, `†` = `updated`;
-anything else hard-fails on purpose (a silent fallback is the one failure that hides itself).
+**A record is a printing, not a card.** Records sharing an `id` are printings of one
+`tcg:Card` whose card-level facts are the *resolved view* — the updated printing if any,
+else the earliest box. A printing whose printed face differs keeps its own `stcc:printed*`
+statements. `stcc:printed*` are deliberately **not** subproperties of `tcg:cardType`/
+`cardSubtype`, whose `rdfs:domain` is `tcg:Card`: a reasoner would otherwise infer that
+every printing is a card. The card-level properties are subproperties, where the domain holds.
 
-**Card Scanner** (`cards.html`, ~100 KB single file + `cardface-assets.js`, a ~1.9 MB data-URI
-bundle). It renders mini card faces: suit/name banners, trait medallions, skill banners, focus/VP
-corner, operation strips. `data/strategy-index.json` + `data/strategy-cards.json` power the
-Strategy badge/drawer; `.github/workflows/strategy-index.yml` rebuilds them on any push touching
-`*.html`, `box*.json`, or the generator, gated on `--check` so the timestamp alone can't produce a
-no-op commit.
-
-**Semantic layer** — the card data is published as linked data mapped onto TCG Schema
-Core, and the site carries it: `data/stcc-ontology.ttl` (vocabulary), `data/cards.jsonld`
-(graph), `card/<id>.html` (556 microdata pages), `dataset.html` (hub), plus microdata the
-Card Scanner emits for every card it renders and typed card anchors in 17 guides.
-
-Vocabulary and instances share one root, **`https://tcg-schema.org/stcc`** — terms are
-CamelCase fragments (`#SuitPerson`), instances are prefixed fragments (`#card-sisko-garak`).
-No IRI names a serving host; `test_ontology.py` fails if one does. Identity is rooted,
-location is relative: artwork `contentUrl`, page canonicals and image paths stay relative
-so they resolve wherever the site is served, while `sitemap.xml` takes its base from the
-entries already in it.
-
-A JSON record is a **printing**; records sharing an `id` are printings of one `tcg:Card`
-whose card-level facts are the resolved view, mirroring `resolveCards()`. Everything except
-`data/stcc-context.jsonld` (hand-maintained; it is the contract the generator writes
-against) is generated — never hand-edit the ttl, the jsonld or the card pages. Regenerate
-graph first, then pages. See WORKFLOW.md "Session Delta — 24 Aug 2026 (Semantic layer)".
-
-**Design system** — every guide links `css/stcc.css` and sets its theme with a body class
-(Core = none, To Boldly Go = `theme-tbg`, Second Contact = `theme-sc`). Rules use semantic vars
-(`--accent`, `--accent2`, …); `--blue`/`--red`/`--amber` are retired. Inline `<style>` survives only
-for the market guides' per-suit `.toc-card` rule (copy the rule *whole* — partial copies fell back
-to blue underlined anchors once already) and two documented one-offs.
+**Each printed icon is its own node.** RDF triples are a set, so a shared term would collapse
+a card's two Military Skills into one — the same reason the JSON has no `count` field.
 
 ## Rules that bite
 
-0. **Regeneration order for the semantic layer:** `build_ontology.py` (graph) →
-   `build_card_pages.py` (pages read the graph) → gates. `semTerm()` in `cards.html` and
-   `camel()` in `build_ontology.py` mint the same IRIs and must change together.
-1. **`cards.html` is never regenerated from a private base.** Several sessions edit it directly, so
-   a wholesale rebuild silently drops other work. Changes land as idempotent patch scripts that
-   assert every anchor and fail loudly (`tools/patch_*.py` — there are ~25 as precedent). A patch
-   script must build the complete new content in memory before opening the destination for write:
-   one that opened `open(out,"w")` first truncated the scanner to zero bytes.
-2. **Verbatim text.** Never alter guide prose on your own initiative — flag it, Periodic_agent
-   decides. Approved corrections are then canonical.
-3. **Generators ship with their output**, in the same commit (Rule 7). Same for `text/<slug>.txt`.
-4. **Push only after explicit approval.** `push_to_github.py` fails closed without the PII denylist;
-   the token and denylist live in project knowledge, never in the repo, never printed. This is an
-   anonymous project: the owner appears only as **Periodic_agent** in files, paths, and commit
-   messages.
-5. **Insert new sections before `</main>`** (`html.replace('\n</main>', new + '\n</main>', 1)`),
-   never append after it.
-6. **Deliberate-looking "bugs" that are not.** Card filenames repeat the captain name
-   (`picard-jean-luc-picard.jpg`) because the rule is deck prefix + full printed name with no
-   carve-outs. `Xindi-Reptillian Battleship` is misprinted on the physical card and the database
-   follows the card. Reprints keep `filename` **blank** so the resolver serves the original's scan.
-   Don't "fix" any of these.
-7. **`id` == `filename` stem, always.** Correct one and regenerate the other in the same pass.
-8. Footers are fixed text: guides carry `Card images © WizKids.` + the McCue/Periodic_agent
-   attribution line; `cards.html` carries the WizKids line only.
-
-## Working style in this repo
-
-Clone/grep locally rather than fetching guide pages into context — `raw.githubusercontent.com` also
-serves silently stale copies (observed hours-old). Batch bash calls; the verification scripts, not
-model care, are what enforce fidelity. When a convention gets broken once, promote it a tier
-(prose → artifact `_note` → non-zero exit) instead of restating it.
+1. **Regeneration order**: `build_ontology.py` → `build_card_pages.py` → gates.
+2. **Closed vocabularies hard-fail**; traits are open and only warn. An unknown suit,
+   variant, icon or operation kind stops the build — a silent fallback is the one failure
+   that hides itself.
+3. **`data/strategy-index.json` is a static input here.** Its generator reads guide HTML,
+   which lives in the compendium repo. Card entries are under the **`cards`** key —
+   reading `guides` yields no links and looks fine, which is how it shipped broken once.
+4. **`id` == `filename` stem, always.** Correct one and regenerate the other in the same pass.
+5. **Printed misprints follow the card**: `Xindi-Reptillian Battleship` keeps its two Ls.
+   Reprints leave `filename` blank so the resolver serves the original's scan.
+6. **Pushing**: the remote is `git@github.com:tcg-schema/stcc-strategy.git` over SSH, but the
+   local git identity is a real name and this project's anonymity rule covers commit metadata.
+   Commit as `-c user.name=periodic-agent -c user.email=periodic-agent@users.noreply.github.com`.
+   Push only after explicit approval.

@@ -46,6 +46,13 @@ SITE = bo.SITE
 
 GOAT = ('<script data-goatcounter="https://stcc-compendium.goatcounter.com/count"\n'
         '        async src="//gc.zgo.at/count.js"></script>')
+# The strategy guides live in the compendium repo, not here. Card pages link out to
+# them absolutely; data/strategy-index.json is kept as a static input because its
+# generator cannot run without the guide HTML.
+COMPENDIUM = "https://periodic-agent.github.io/stcc-strategy/"
+# Where this dataset is served. Sitemap <loc> must name the serving host, which the
+# semantic root deliberately does not.
+SITE_HOST = "https://tcg-schema.github.io/stcc-strategy/"
 THEME = {"core": "", "tbg": "theme-tbg", "2nd": "theme-sc",
          "promo1": "", "promo2": "theme-tbg"}
 BOX_LABEL = dict((b[0], b[2]) for b in bo.BOXES)
@@ -108,14 +115,15 @@ def card_page(card, printings, guides, ctx_url):
       'title="Card graph (JSON-LD)">')
     a('<link rel="alternate" type="text/turtle" href="../data/stcc-ontology.ttl" '
       'title="ST:CC vocabulary (Turtle)">')
+    a('<link rel="icon" href="../icons8-star-trek-symbol-96.png">')
     a('<link rel="stylesheet" href="../css/stcc.css?v=1">')
     a('<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&'
       'family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">')
     a("</head>")
     a('<body%s>' % ((' class="%s"' % theme) if theme else ""))
-    a('<div class="nav-bar"><a href="../index.html">&larr; Back to Compendium</a> '
-      '&middot; <a href="../cards.html">Card Scanner</a> &middot; '
-      '<a href="../dataset.html">Semantic data</a></div>')
+    a('<div class="nav-bar"><a href="../index.html">&larr; ST:CC Dataset</a> '
+      '&middot; <a href="index.html">Card index</a> &middot; '
+      '<a href="%sindex.html">Strategy Compendium</a></div>' % e(COMPENDIUM))
     a('<main class="cardpage">')
     a('<article itemscope itemtype="%s" itemid="%s">' % (e(CORE + "Card"), e(card["id"])))
     a('<h1 itemprop="%s">%s</h1>' % (e("https://schema.org/name"), e(name)))
@@ -204,18 +212,19 @@ def card_page(card, printings, guides, ctx_url):
 
     if guides:
         a("<h2>Discussed in</h2>")
-        a('<div class="pr">Strategy guides by Matthew McCue that cover this card:</div>')
+        a('<div class="pr">Strategy guides by Matthew McCue that cover this card, in the '
+          '<a href="%s">ST:CC Strategy Compendium</a>:</div>' % e(COMPENDIUM))
         for g in guides:
-            href = "../%s#%s" % (g["guide"], g["anchor"]) if g.get("anchor") else "../" + g["guide"]
+            href = (COMPENDIUM + g["guide"] + ("#" + g["anchor"] if g.get("anchor") else ""))
             a('<div class="pr">&rarr; <a itemprop="%s" href="%s">%s</a>%s</div>'
               % (C("rulesReference"), e(href), e(g["guide"].replace(".html", "")),
                  (" &mdash; " + e(g["heading"])) if g.get("heading") else ""))
 
     a('<div class="cp-iri">This card is <code>%s</code> in the '
-      '<a href="../dataset.html">ST:CC semantic dataset</a>.</div>' % e(card["id"]))
+      '<a href="../index.html">ST:CC dataset</a>.</div>' % e(card["id"]))
     a("</article>")
     a("</main>")
-    a('<div class="nav-bar"><a href="../index.html">&larr; Back to Compendium</a></div>')
+    a('<div class="nav-bar"><a href="../index.html">&larr; ST:CC Dataset</a></div>')
     a("<footer>Card images &copy; WizKids.</footer>")
 
     subgraph = {"@context": ctx_url, "@graph": [card] + printings}
@@ -232,22 +241,21 @@ def index_page(cards):
            "<title>Card Index &mdash; ST:CC</title>",
            '<meta name="description" content="Every Star Trek: Captain\'s Chair card, '
            'one page per card, with machine-readable data.">',
+           '<link rel="icon" href="../icons8-star-trek-symbol-96.png">',
            '<link rel="stylesheet" href="../css/stcc.css?v=1">',
            '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&'
            'family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">',
            "</head>\n<body>",
-           '<div class="nav-bar"><a href="../index.html">&larr; Back to Compendium</a> '
-           '&middot; <a href="../cards.html">Card Scanner</a> &middot; '
-           '<a href="../dataset.html">Semantic data</a></div>',
+           '<div class="nav-bar"><a href="../index.html">&larr; ST:CC Dataset</a> '
+           '&middot; <a href="%sindex.html">Strategy Compendium</a></div>' % COMPENDIUM,
            '<main class="idx"><h1>Card Index</h1>',
-           '<p>One page per card, each carrying its own machine-readable description. '
-           'For searching and filtering, use the <a href="../cards.html">Card Scanner</a>.</p>',
+           '<p>One page per card, each carrying its own machine-readable description.</p>',
            "<ul>"]
     for card in sorted(cards, key=lambda c: c["name"].lower()):
         cid = card["id"].split("#card-", 1)[1]
         out.append('<li><a href="%s.html">%s</a></li>' % (e(cid), e(card["name"])))
     out += ["</ul></main>",
-            '<div class="nav-bar"><a href="../index.html">&larr; Back to Compendium</a></div>',
+            '<div class="nav-bar"><a href="../index.html">&larr; ST:CC Dataset</a></div>',
             "<footer>Card images &copy; WizKids.</footer>", GOAT, "</body>\n</html>"]
     return "\n".join(out) + "\n"
 
@@ -259,7 +267,7 @@ def dataset_page(stats, ctx_url):
           "name": "Star Trek: Captain's Chair card data",
           "description": "Every card in Star Trek: Captain's Chair as linked data, "
                          "mapped onto the TCG Schema vocabulary.",
-          "url": SITE + "dataset.html",
+          "url": SITE_HOST,
           "license": "https://creativecommons.org/licenses/by/4.0/",
           "creator": {"@type": "Person", "name": "Periodic_agent"},
           "distribution": [
@@ -272,18 +280,19 @@ def dataset_page(stats, ctx_url):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Semantic Data &mdash; ST:CC Compendium</title>
+<title>ST:CC Card Dataset</title>
 <meta name="description" content="The Star Trek: Captain's Chair card database as linked data: vocabulary, card graph, and one dereferenceable page per card.">
-<link rel="canonical" href="dataset.html">
+<link rel="canonical" href="index.html">
 <link rel="alternate" type="application/ld+json" href="data/cards.jsonld" title="Card graph (JSON-LD)">
 <link rel="alternate" type="text/turtle" href="data/stcc-ontology.ttl" title="ST:CC vocabulary (Turtle)">
+<link rel="icon" href="icons8-star-trek-symbol-96.png">
 <link rel="stylesheet" href="css/stcc.css?v=1">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="nav-bar"><a href="index.html">&larr; Back to Compendium</a> &middot; <a href="cards.html">Card Scanner</a> &middot; <a href="card/index.html">Card index</a></div>
+<div class="nav-bar"><a href="card/index.html">Card index</a> &middot; <a href="{compendium}index.html">Strategy Compendium</a></div>
 <main class="ds">
-<h1>Semantic Data</h1>
+<h1>ST:CC Card Dataset</h1>
 <p>Every card in <em>Star Trek: Captain's Chair</em> is published as linked data, mapped onto
 <a href="https://www.tcg-schema.org/core.ttl">TCG Schema Core</a> &mdash; the same vocabulary the
 CardForge card creator emits. The card JSONs stay the editing surface; this is a generated view
@@ -320,47 +329,40 @@ so an errata'd card is readable at both levels.</p>
 <p>Each printed icon is its own node rather than a term with a count: RDF triples are a set, and a
 card with two Military Skills would otherwise collapse to one.</p>
 
+<h2>Where the guides went</h2>
+<p>This repository is the dataset. Matthew McCue's strategy guides live in the
+<a href="{compendium}index.html">ST:CC Strategy Compendium</a>, and each card page links
+to the sections that discuss it.</p>
+
 <h2>Reuse</h2>
 <p>The data is a community resource &mdash; link it, query it, build on it. Card images
-&copy; WizKids. A pointer back to the Compendium is appreciated but not required.</p>
+&copy; WizKids. A pointer back is appreciated but not required.</p>
 </main>
-<div class="nav-bar"><a href="index.html">&larr; Back to Compendium</a></div>
+<div class="nav-bar"><a href="card/index.html">Card index</a></div>
 <footer>Card images &copy; WizKids.</footer>
 <script type="application/ld+json">{ld}</script>
 {goat}
 </body>
 </html>
-""".format(site=SITE, root=ROOT, rows=rows, ld=json.dumps(ld, ensure_ascii=False),
-           goat=GOAT).replace("{%", "{%")
+""".format(site=SITE_HOST, root=ROOT, rows=rows, ld=json.dumps(ld, ensure_ascii=False),
+           goat=GOAT, compendium=COMPENDIUM)
 
 
 def update_sitemap(repo, cids, write=True):
-    path = os.path.join(repo, "sitemap.xml")
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-    # Drop previously generated entries, then re-add: idempotent, and existing
-    # guide entries are never touched.
-    lines = [l for l in text.splitlines()
-             if "/card/" not in l and "/dataset.html" not in l]
+    """Build the whole sitemap. Every URL this repo serves is generated here now that
+    the guides live elsewhere, so there is nothing to preserve -- and a stale guide
+    entry would advertise a 404."""
     date = "2026-08-24"
-    # A sitemap may only list URLs on the host that serves it, so the base comes
-    # from the entries already there -- not from the semantic root, which names
-    # no host on purpose.
-    hosts = re.findall(r"<loc>(https?://[^<]+/)[^/<]+</loc>", text)
-    if not hosts:
-        raise SystemExit("sitemap.xml has no existing <loc> to take the site base from")
-    base = hosts[0]
-    extra = ['  <url><loc>%sdataset.html</loc><lastmod>%s</lastmod></url>' % (base, date),
-             '  <url><loc>%scard/index.html</loc><lastmod>%s</lastmod></url>' % (base, date)]
-    extra += ['  <url><loc>%scard/%s.html</loc><lastmod>%s</lastmod></url>' % (base, c, date)
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+             '  <url><loc>%s</loc><lastmod>%s</lastmod></url>' % (SITE_HOST, date),
+             '  <url><loc>%scard/index.html</loc><lastmod>%s</lastmod></url>' % (SITE_HOST, date)]
+    lines += ['  <url><loc>%scard/%s.html</loc><lastmod>%s</lastmod></url>' % (SITE_HOST, c, date)
               for c in sorted(cids)]
-    out = []
-    for line in lines:
-        if line.strip() == "</urlset>":
-            out.extend(extra)
-        out.append(line)
-    new = "\n".join(out) + "\n"
-    if write and new != text:
+    lines.append("</urlset>")
+    new = "\n".join(lines) + "\n"
+    path = os.path.join(repo, "sitemap.xml")
+    if write:
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(new)
     return new
@@ -386,7 +388,10 @@ def main():
 
     try:
         with open(os.path.join(args.repo, "data", "strategy-index.json"), encoding="utf-8") as fh:
-            sidx = json.load(fh).get("guides", {})
+            # NOTE: card entries live under "cards"; "guides" is keyed by guide
+            # filename. Reading the wrong key silently yields no links at all,
+            # which is exactly what shipped the first time.
+            sidx = json.load(fh).get("cards", {})
     except (FileNotFoundError, ValueError):
         sidx = {}
 
@@ -401,9 +406,19 @@ def main():
         cids.append(cid)
         hits = []
         for entry in sidx.get(cid, []):
-            for hit in entry.get("hits", [])[:1]:
+            # One link per guide, and pick the hit that is actually ABOUT this card:
+            # an anchor hit is exact by construction, then a heading naming the card;
+            # the first hit is often a neighbouring card's paragraph that mentions it.
+            candidates = entry.get("hits", [])
+            hit = next((h for h in candidates if h.get("mode") == "anchor"), None)
+            if hit is None:
+                hit = next((h for h in candidates
+                            if h.get("heading", "").lower().startswith(card["name"].lower())), None)
+            if hit is None and candidates:
+                hit = candidates[0]
+            if hit:
                 hits.append({"guide": entry["guide"], "anchor": hit.get("anchor"),
-                             "heading": hit.get("heading")})
+                             "heading": hit.get("heading"), "count": entry.get("count")})
         page = card_page(card, printings.get(card["id"], []), hits, ctx_url)
         path = os.path.join(outdir, cid + ".html")
         if args.check:
@@ -421,8 +436,18 @@ def main():
     stats = [("Cards", len(cards)), ("Printings", sum(len(v) for v in printings.values())),
              ("Sets", 5), ("Vocabulary terms", len(TERM_LABELS)),
              ("Card pages", len(cards))]
+    stub = ('<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+            '<title>ST:CC Card Dataset</title>\n'
+            '<link rel="canonical" href="index.html">\n'
+            '<meta http-equiv="refresh" content="0; url=index.html">\n</head>\n'
+            '<body><p>This page moved to <a href="index.html">the dataset home</a>.</p>'
+            '</body>\n</html>\n')
     pages = [(os.path.join(outdir, "index.html"), index_page(cards)),
-             (os.path.join(args.repo, "dataset.html"), dataset_page(stats, ctx_url))]
+             (os.path.join(args.repo, "index.html"), dataset_page(stats, ctx_url)),
+             # dataset.html was published before the compendium moved out; keep the
+             # stub so links minted under that path still land (same convention as
+             # card-browser-mockup.html did for the scanner rename).
+             (os.path.join(args.repo, "dataset.html"), stub)]
     for path, content in pages:
         if args.check:
             try:

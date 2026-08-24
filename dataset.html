@@ -2,63 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Semantic Data &mdash; ST:CC Compendium</title>
-<meta name="description" content="The Star Trek: Captain's Chair card database as linked data: vocabulary, card graph, and one dereferenceable page per card.">
-<link rel="canonical" href="dataset.html">
-<link rel="alternate" type="application/ld+json" href="data/cards.jsonld" title="Card graph (JSON-LD)">
-<link rel="alternate" type="text/turtle" href="data/stcc-ontology.ttl" title="ST:CC vocabulary (Turtle)">
-<link rel="stylesheet" href="css/stcc.css?v=1">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+<title>ST:CC Card Dataset</title>
+<link rel="canonical" href="index.html">
+<meta http-equiv="refresh" content="0; url=index.html">
 </head>
-<body>
-<div class="nav-bar"><a href="index.html">&larr; Back to Compendium</a> &middot; <a href="cards.html">Card Scanner</a> &middot; <a href="card/index.html">Card index</a></div>
-<main class="ds">
-<h1>Semantic Data</h1>
-<p>Every card in <em>Star Trek: Captain's Chair</em> is published as linked data, mapped onto
-<a href="https://www.tcg-schema.org/core.ttl">TCG Schema Core</a> &mdash; the same vocabulary the
-CardForge card creator emits. The card JSONs stay the editing surface; this is a generated view
-of them, so the two cannot disagree.</p>
-
-<h2>The root</h2>
-<p>Vocabulary and data share one root, <code>https://tcg-schema.org/stcc</code>. Terms are CamelCase fragments and
-instances are prefixed fragments, so nothing in the graph names whichever host serves the files:</p>
-<table>
-<tr><td><code>https://tcg-schema.org/stcc#SuitPerson</code></td><td>a vocabulary term</td></tr>
-<tr><td><code>https://tcg-schema.org/stcc#victoryPoints</code></td><td>a vocabulary property</td></tr>
-<tr><td><code>https://tcg-schema.org/stcc#card-sisko-garak</code></td><td>a card</td></tr>
-<tr><td><code>https://tcg-schema.org/stcc#printing-core-sisko-garak</code></td><td>one printing of it</td></tr>
-<tr><td><code>https://tcg-schema.org/stcc#set-core</code>, <code>#pool-core-sisko</code></td><td>set, card pool</td></tr>
-</table>
-
-<h2>Files</h2>
-<div class="files">
-<a href="data/stcc-ontology.ttl"><strong>stcc-ontology.ttl</strong> &mdash; the vocabulary: classes, properties, and every closed term set (Turtle)</a>
-<a href="data/cards.jsonld"><strong>cards.jsonld</strong> &mdash; the card graph: every card and printing (JSON-LD)</a>
-<a href="data/stcc-context.jsonld"><strong>stcc-context.jsonld</strong> &mdash; the JSON-LD context the graph is written against</a>
-<a href="card/index.html"><strong>card/&lt;id&gt;.html</strong> &mdash; one page per card, carrying the same statements as microdata</a>
-</div>
-
-<h2>What is in it</h2>
-<table><tr><td>Cards</td><td>556</td></tr><tr><td>Printings</td><td>610</td></tr><tr><td>Sets</td><td>5</td></tr><tr><td>Vocabulary terms</td><td>111</td></tr><tr><td>Card pages</td><td>556</td></tr></table>
-
-<h2>Modelling</h2>
-<p>A record in the card JSONs is a <strong>printing</strong>, not a card. Printings sharing an id are
-printings of one <code>tcg:Card</code>, whose card-level facts are the resolved view &mdash; the updated
-printing if the card has one, else the earliest box &mdash; which is what the Card Scanner shows.
-A printing whose printed face differs from that view keeps its own <code>stcc:printed*</code> statements,
-so an errata'd card is readable at both levels.</p>
-<p>Each printed icon is its own node rather than a term with a count: RDF triples are a set, and a
-card with two Military Skills would otherwise collapse to one.</p>
-
-<h2>Reuse</h2>
-<p>The data is a community resource &mdash; link it, query it, build on it. Card images
-&copy; WizKids. A pointer back to the Compendium is appreciated but not required.</p>
-</main>
-<div class="nav-bar"><a href="index.html">&larr; Back to Compendium</a></div>
-<footer>Card images &copy; WizKids.</footer>
-<script type="application/ld+json">{"@context": "https://schema.org/", "@type": "Dataset", "name": "Star Trek: Captain's Chair card data", "description": "Every card in Star Trek: Captain's Chair as linked data, mapped onto the TCG Schema vocabulary.", "url": "https://tcg-schema.org/stcc/dataset.html", "license": "https://creativecommons.org/licenses/by/4.0/", "creator": {"@type": "Person", "name": "Periodic_agent"}, "distribution": [{"@type": "DataDownload", "encodingFormat": "application/ld+json", "contentUrl": "https://tcg-schema.org/stcc/data/cards.jsonld"}, {"@type": "DataDownload", "encodingFormat": "text/turtle", "contentUrl": "https://tcg-schema.org/stcc/data/stcc-ontology.ttl"}]}</script>
-<script data-goatcounter="https://stcc-compendium.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
-</body>
+<body><p>This page moved to <a href="index.html">the dataset home</a>.</p></body>
 </html>
