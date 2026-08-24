@@ -1105,3 +1105,123 @@ Both ride on the same data with no generator changes.
 function ran; a failed patch truncated the scanner to zero bytes. Fixed by building the patched
 content fully before opening anything for write. Convention for all future patch scripts: never
 open the destination for writing until the new content exists in memory.
+
+---
+
+## Session Delta — 24 Aug 2026 (Semantic layer)
+
+### What shipped
+
+The card database is published as linked data, and the Pages site now carries it:
+every card is an addressable subject with its own page, the Card Scanner emits
+machine-readable statements for what it renders, and the guides say which card
+each section is about. Nothing about the card JSONs changed — they stay the editing
+surface, and everything below is generated from them.
+
+Mapped onto **TCG Schema Core** (`https://www.tcg-schema.org/core.ttl` — the
+vocabulary behind the CardForge card creator; 54 classes, 182 properties).
+
+### One root
+
+Vocabulary and instances are both fragments of **`https://tcg-schema.org/stcc`**:
+
+| Fragment | Example |
+|---|---|
+| vocabulary term (CamelCase) | `#SuitPerson`, `#TraitCardassian`, `#OpActivation` |
+| vocabulary property | `#suit`, `#victoryPoints`, `#printingVariant` |
+| instance (prefixed) | `#card-sisko-garak`, `#printing-core-sisko-garak`, `#set-core`, `#pool-core-sisko`, `#art-core-sisko-garak`, `#game-stcc` |
+
+**No IRI names the host that serves the files**, so moving the site never rewrites
+the graph. That is checked, not just intended: `test_ontology.py` fails if any IRI
+in the vocabulary or graph mentions a serving host.
+
+The split that makes this work: **identity is rooted, location is relative.**
+Artwork has a rooted identity (`#art-core-phlox`) and a *relative* `schema:contentUrl`
+(`../img/box1/phlox.jpg`) which resolves wherever the files are served — both
+consumers, `data/cards.jsonld` and `card/<id>.html`, sit one directory deep. For the
+same reason card pages use a self-referential relative `<link rel="canonical">`, and
+`sitemap.xml` takes its base from the entries already in it: a sitemap may only list
+URLs on the host that serves it, and a canonical pointing at a host that does not
+serve the page yet would deindex the site.
+
+The CamelCase/prefixed split is what tells vocabulary from instance in one flat
+fragment space. `#game` had to become `#game-stcc` for that rule to hold — the gate
+caught it.
+
+### Files
+
+| Path | Role |
+|---|---|
+| `data/stcc-ontology.ttl` | The vocabulary: 14 classes, 22 properties, 107 terms in 6 term sets. GENERATED. |
+| `data/cards.jsonld` | 610 printings as `tcg:Card` + `tcg:CardPrinting`, ~20k triples. GENERATED. |
+| `data/stcc-context.jsonld` | JSON-LD context. **Hand-maintained** — the contract the generator writes against. |
+| `card/<id>.html` | 556 card pages: microdata + a per-card JSON-LD block. GENERATED. |
+| `card/index.html`, `dataset.html` | Card index and the dataset hub. GENERATED. |
+| `tools/build_ontology.py` | Generates the ttl + jsonld. `--check`, `--report`. |
+| `tools/build_card_pages.py` | Generates the pages and folds them into `sitemap.xml`. `--check`. |
+| `tools/patch_scanner_semantic.py` | Adds microdata + dataset discovery to `cards.html`. Idempotent, refuses to run twice. |
+| `tools/patch_guide_semantics.py` | Types the `<h3 id="card-id">` anchors in 17 guides (178 anchors). Attributes only. |
+| `tools/test_ontology.py` | RDF gate, 18 assertions. Needs rdflib. |
+
+`css/stcc.css` carries the card-page block (the 556 pages have no inline CSS, so they
+stay diffable and restyling stays a one-file change). `robots.txt` now allows the three
+semantic files while keeping the rest of `/data/` out of search — a semantic-first site
+that blocks its own data would be a contradiction.
+
+### Modelling rules (the ones that will bite)
+
+- **A JSON record is a printing, not a card.** Records sharing an `id` are printings
+  of one `tcg:Card`, exactly as `resolveCards()` groups them. Card-level facts are the
+  **resolved view** (updated printing if any, else earliest box) so the graph says what
+  the scanner shows; `stcc:resolvedFrom` names the printing it came from.
+- **Divergence is emitted, never flattened.** A printing whose printed facts differ from
+  the resolved view carries its own `stcc:printed*` triples (5 today: 4 pre-errata faces
+  plus one reprint whose transcription differs by a word). Identical reprints stay silent.
+- **`stcc:printed*` are deliberately NOT subproperties of `tcg:cardType`/`cardSubtype`.**
+  Those carry `rdfs:domain tcg:Card`, so a reasoner would infer every printing is itself
+  a card. The card-level properties ARE subproperties, because there the domain holds.
+  `test_ontology.py --core` checks this for every subproperty.
+- **Comparison of printings sorts traits and icons.** Printed order is not semantic (the
+  same point the reprint check makes); comparing in printed order reported 10 printings
+  as divergent purely from list order.
+- **Icons keep the one-node-per-printed-icon model**, in the JSON, the graph and the
+  scanner's microdata alike. RDF triples are a set, so a shared term would collapse a
+  card's two Military Skills into one.
+- **`semTerm()` in the scanner must stay in step with `camel()` in `build_ontology.py`.**
+  They mint the same IRIs from the same printed strings; `test_scanner.mjs` asserts that
+  every IRI the scanner mints is declared in the shipped ontology.
+- **Guides gain attributes only.** `patch_guide_semantics.py` adds `itemscope`/`itemtype`/
+  `itemid` and a void `<link>` inside the heading — never text. Run `verify_guide.py` over
+  every patched guide afterwards; that is the gate that proves Rule 1 held.
+- Closed vocabularies hard-fail on an unknown value; traits are open and only warn.
+- `stcc:jsonKey` / `stcc:jsonValue` record the exact key and string each term comes from
+  in the card JSON, so the JSON↔RDF mapping is machine-readable rather than prose here.
+
+### Regeneration order
+
+Card data changed? Run in this order — pages are built from the graph, so the graph
+goes first:
+
+```
+python3 tools/build_ontology.py --report
+python3 tools/build_card_pages.py
+python3 tools/test_ontology.py --core core.ttl   # curl -o core.ttl https://www.tcg-schema.org/core.ttl
+node tools/test_scanner.mjs .
+```
+
+`--check` on both generators exits 1 when the committed output differs from a fresh
+build, so they can be wired into `.github/workflows/` the way the strategy index is.
+Without `--core` the two core-alignment assertions print SKIP rather than passing
+silently.
+
+### Notes
+
+- `data/stcc-context.jsonld` does **not** lift `box1.json`..`promo2.json` directly: those
+  carry display strings (`"Mind Control"`), not term IRIs, and JSON-LD cannot rewrite
+  values. `cards.jsonld` is the linked-data view of the same data.
+- Card pages **link** to guide passages and never quote them: `data/strategy-index.json`
+  holds McCue's paragraphs verbatim, and Rule 1 keeps his text in his guides.
+- `card/` is ~4.8 MB of HTML. Most of it is the per-page JSON-LD block, which is what
+  makes each page self-describing; the img library is 341 MB for scale.
+- `tools/test_scanner.mjs` used to execute every `<script>` block regardless of type and
+  died on the first JSON-LD block. It now skips non-JavaScript types.

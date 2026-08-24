@@ -1,0 +1,55 @@
+{
+  "_note": "JSON-LD context for data/cards.jsonld. HAND-MAINTAINED: tools/build_ontology.py writes against this contract and its --check fails if it emits a key this file does not define. Terms are ST:CC extension vocabulary (stcc:) or TCG Schema Core (tcg:). Vocabulary and instances share one root, https://tcg-schema.org/stcc : terms are CamelCase fragments, instances are prefixed fragments (card-, printing-, set-, pool-, art-, game-). NOTE: this context does NOT lift box1.json..promo2.json directly -- those carry display strings ('Mind Control'), not term IRIs, and JSON-LD cannot rewrite values. cards.jsonld is the linked-data view of that same data.",
+
+  "@context": {
+    "stcc": "https://tcg-schema.org/stcc#",
+    "tcg": "https://tcg-schema.org/core#",
+    "schema": "https://schema.org/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+
+    "id": "@id",
+    "type": "@type",
+    "name": "schema:name",
+    "isPartOf": { "@id": "schema:isPartOf", "@type": "@id" },
+    "contentUrl": { "@id": "schema:contentUrl", "@type": "@id" },
+
+    "inGame": { "@id": "tcg:inGame", "@type": "@id" },
+    "setCode": "tcg:setCode",
+
+    "hasPrinting": { "@id": "tcg:hasPrinting", "@type": "@id", "@container": "@set" },
+    "printsCard": { "@id": "tcg:printsCard", "@type": "@id" },
+    "inSet": { "@id": "tcg:inSet", "@type": "@id" },
+    "collectorNumber": "tcg:collectorNumber",
+    "reprintOf": { "@id": "tcg:reprintOf", "@type": "@id" },
+    "printingArtwork": { "@id": "tcg:printingArtwork", "@type": "@id" },
+    "printingRulesText": "tcg:printingRulesText",
+
+    "hasAbility": { "@id": "tcg:hasAbility", "@container": "@set" },
+    "abilityType": { "@id": "tcg:abilityType", "@type": "@id" },
+    "abilityText": "tcg:abilityText",
+    "orderIndex": { "@id": "tcg:orderIndex", "@type": "xsd:integer" },
+
+    "suit": { "@id": "stcc:suit", "@type": "@id" },
+    "speciesTrait": { "@id": "stcc:speciesTrait", "@type": "@id", "@container": "@set" },
+    "regularTrait": { "@id": "stcc:regularTrait", "@type": "@id", "@container": "@set" },
+    "otherTrait": { "@id": "stcc:otherTrait", "@type": "@id", "@container": "@set" },
+    "hasIcon": { "@id": "stcc:hasIcon", "@container": "@set" },
+    "specialty": { "@id": "stcc:specialty", "@type": "@id" },
+    "victoryPoints": { "@id": "stcc:victoryPoints", "@type": "xsd:integer" },
+    "startingPosition": { "@id": "stcc:startingPosition", "@type": "@id" },
+    "awayTeamSize": "stcc:awayTeamSize",
+    "resolvedFrom": { "@id": "stcc:resolvedFrom", "@type": "@id" },
+
+    "costsAction": { "@id": "stcc:costsAction", "@type": "xsd:boolean" },
+    "qualifier": "stcc:qualifier",
+
+    "printingVariant": { "@id": "stcc:printingVariant", "@type": "@id" },
+    "inPool": { "@id": "stcc:inPool", "@type": "@id" },
+
+    "printedSuit": { "@id": "stcc:printedSuit", "@type": "@id" },
+    "printedTrait": { "@id": "stcc:printedTrait", "@type": "@id", "@container": "@set" },
+    "printedIcon": { "@id": "stcc:printedIcon", "@container": "@set" },
+    "printedVictoryPoints": { "@id": "stcc:printedVictoryPoints", "@type": "xsd:integer" },
+    "printedStartingPosition": { "@id": "stcc:printedStartingPosition", "@type": "@id" }
+  }
+}

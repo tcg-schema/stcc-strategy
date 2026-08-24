@@ -10,6 +10,13 @@ Disallow: /README.md
 Disallow: /tools/
 Disallow: /text/
 Disallow: /mockups/
+
+# The semantic layer is meant to be fetched: vocabulary, card graph and the
+# JSON-LD context are published data, not internal tooling. Everything else in
+# /data/ stays out of search.
+Allow: /data/stcc-ontology.ttl
+Allow: /data/cards.jsonld
+Allow: /data/stcc-context.jsonld
 Disallow: /data/
 Disallow: /box1.json
 Disallow: /box2.json
@@ -21,4 +28,4 @@ Disallow: /extract_cards.py
 Disallow: /download_allies_images.py
 Disallow: /harmless_kitten.html
 
-Sitemap: https://periodic-agent.github.io/stcc-strategy/sitemap.xml
+Sitemap: https://tcg-schema.github.io/stcc-strategy/sitemap.xml

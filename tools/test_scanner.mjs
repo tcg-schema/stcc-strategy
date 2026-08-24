@@ -93,8 +93,14 @@ function extractScripts(html, repoDir){
     const src=m[1];
     if(!/^(https?:)?\/\//.test(src)) out.push(fs.readFileSync(repoDir + '/' + src.split('?')[0], 'utf8'));
   }
-  const re=/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
-  while((m=re.exec(html))) out.push(m[1]);
+  const re=/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g;
+  while((m=re.exec(html))){
+    // Only executable blocks. A browser runs no <script type="application/ld+json">;
+    // running it here would fail on the first ':' and take the whole harness down.
+    const type=/\btype="([^"]+)"/.exec(m[1]);
+    if(type && !/^(text\/javascript|module|application\/javascript)$/i.test(type[1])) continue;
+    out.push(m[2]);
+  }
   return out;
 }
 
@@ -506,6 +512,58 @@ const knownIds = new Set(['box1.json','box2.json','box3.json']
 const orphanCards = Object.keys(idx.cards).filter(id=>!knownIds.has(id));
 assert(orphanCards.length === 0,
   'every indexed card id still exists in the card data' + (orphanCards.length?' '+JSON.stringify(orphanCards.slice(0,5)):''));
+
+// --- semantic microdata (tools/patch_scanner_semantic.py) -------------------
+// The published page is the dataset, so every rendered card must BE an RDF
+// subject. These assertions fail if a scanner refactor drops the annotation or
+// if semTerm() drifts from camel() in tools/build_ontology.py, which would mint
+// IRIs that do not exist in the vocabulary.
+const semCard = api.ALL_CARDS.find(c=>c.id === 'sisko-garak');
+const semEl = semCard ? api.buildPillCard(semCard) : null;
+const attr = (el,n)=>el && el.getAttribute && el.getAttribute(n);
+assert(!!semEl && attr(semEl,'itemid') === 'https://tcg-schema.org/stcc#card-sisko-garak'
+       && attr(semEl,'itemtype') === 'https://tcg-schema.org/core#Card',
+  'a rendered card entry is typed as tcg:Card with its own IRI');
+
+const semKids = (semEl && semEl.children) || [];
+const propsOf = n => attr(n,'itemprop');
+assert(semKids.some(n=>propsOf(n)==='https://tcg-schema.org/stcc#suit'
+                       && attr(n,'href')==='https://tcg-schema.org/stcc#SuitPerson'),
+  'the entry carries its suit as a vocabulary IRI');
+assert(semKids.some(n=>propsOf(n)==='https://schema.org/url'
+                       && attr(n,'href')==='card/sisko-garak.html'),
+  'the entry links to its own card page');
+assert(semKids.filter(n=>propsOf(n)==='https://tcg-schema.org/stcc#speciesTrait'
+                         || propsOf(n)==='https://tcg-schema.org/stcc#regularTrait'
+                         || propsOf(n)==='https://tcg-schema.org/stcc#otherTrait').length
+       === (semCard.species.length + semCard.regular.length + semCard.other.length),
+  'every trait is emitted, one link per trait');
+
+// A card with repeated icons must emit one node each: a shared term would
+// collapse them, which is the whole reason the data has no count field.
+const multi = api.ALL_CARDS.find(c=>c.skills.filter(s=>/\s(Skill|Focus)$/.test(s)).length > 1);
+if(multi){
+  const el = api.buildPillCard(multi);
+  const icons = (el.children||[]).filter(n=>attr(n,'itemprop')==='https://tcg-schema.org/stcc#hasIcon');
+  assert(icons.length === multi.skills.filter(s=>/\s(Skill|Focus)$/.test(s)).length,
+    'repeated printed icons emit one node each (no term collapse)');
+}
+
+// Vocabulary IRIs the page mints must exist in the shipped ontology.
+if(fs.statSync(repo + '/data/stcc-ontology.ttl', {throwIfNoEntry:false})?.isFile()){
+  const ttl = fs.readFileSync(repo + '/data/stcc-ontology.ttl','utf8');
+  const minted = new Set();
+  for(const c of api.ALL_CARDS.slice(0,200)){
+    for(const n of (api.buildPillCard(c).children||[])){
+      const h = attr(n,'href');
+      if(h && h.startsWith('https://tcg-schema.org/stcc#')) minted.add(h.split('#')[1]);
+    }
+  }
+  const missing = [...minted].filter(t=>!new RegExp('^stcc:'+t+' a ','m').test(ttl));
+  assert(missing.length === 0,
+    'every vocabulary IRI the scanner mints is declared in the ontology'
+    + (missing.length?' '+JSON.stringify(missing.slice(0,5)):''));
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll assertions passed.');
 process.exit(failures ? 1 : 0);

@@ -480,6 +480,18 @@ footer{border-top:1px solid var(--border);padding:1.25rem 1.5rem;text-align:cent
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <script src="cardface-assets.js?v=c07331a3"></script>
+<!-- SEMANTIC_MICRODATA_START (tools/patch_scanner_semantic.py) -->
+<link rel="alternate" type="application/ld+json" href="data/cards.jsonld" title="Card graph (JSON-LD)">
+<link rel="alternate" type="text/turtle" href="data/stcc-ontology.ttl" title="ST:CC vocabulary (Turtle)">
+<script type="application/ld+json">
+{"@context":"https://schema.org/","@type":"Dataset",
+ "name":"Star Trek: Captain's Chair card data",
+ "description":"Every card in Star Trek: Captain's Chair as linked data, mapped onto the TCG Schema vocabulary.",
+ "url":"dataset.html",
+ "distribution":[{"@type":"DataDownload","encodingFormat":"application/ld+json","contentUrl":"data/cards.jsonld"},
+                 {"@type":"DataDownload","encodingFormat":"text/turtle","contentUrl":"data/stcc-ontology.ttl"}]}
+</script>
+<!-- SEMANTIC_MICRODATA_END -->
 </head>
 <body>
 
@@ -1455,10 +1467,63 @@ function buildStrips(c){
 }
 
 
+
+// --- SEMANTIC_MICRODATA_START -------------------------------------------------
+// Every card entry is published as an RDF subject in the ST:CC vocabulary
+// (https://tcg-schema.org/stcc#). Values are emitted as <link>/<meta>, which
+// render nothing, so this is invisible on screen and complete to a parser.
+// semTerm() MUST stay in step with camel() in tools/build_ontology.py: the two
+// mint the same IRIs from the same printed strings.
+const SEM_ROOT='https://tcg-schema.org/stcc#';
+const SEM_CORE='https://tcg-schema.org/core#';
+const SEM_SCHEMA='https://schema.org/';
+function semTerm(prefix, value){
+  const parts=String(value).split(/[^A-Za-z0-9]+/).filter(Boolean).map(p=>
+    (p===p.toUpperCase()||p[0]===p[0].toUpperCase()) ? p : p[0].toUpperCase()+p.slice(1));
+  return SEM_ROOT+prefix+parts.join('');
+}
+function semLink(el, prop, href){
+  const n=document.createElement('link'); n.setAttribute('itemprop',prop); n.setAttribute('href',href);
+  el.appendChild(n);
+}
+function semMeta(el, prop, content){
+  const n=document.createElement('meta'); n.setAttribute('itemprop',prop); n.setAttribute('content',content);
+  el.appendChild(n);
+}
+function semAnnotate(el, c){
+  el.setAttribute('itemscope','');
+  el.setAttribute('itemtype', SEM_CORE+'Card');
+  el.setAttribute('itemid', SEM_ROOT+'card-'+c.id);
+  semMeta(el, SEM_SCHEMA+'name', c.name||'');
+  semLink(el, SEM_SCHEMA+'url', 'card/'+c.id+'.html');
+  if(c.suit) semLink(el, SEM_ROOT+'suit', semTerm('Suit', c.suit));
+  (c.species||[]).forEach(t=>semLink(el, SEM_ROOT+'speciesTrait', semTerm('Trait', t)));
+  (c.regular||[]).forEach(t=>semLink(el, SEM_ROOT+'regularTrait', semTerm('Trait', t)));
+  (c.other||[]).forEach(t=>semLink(el, SEM_ROOT+'otherTrait', semTerm('Trait', t)));
+  // One node per printed icon, never a count: repeats are meaningful and a shared
+  // term would collapse them (same rule as the JSON and the ontology).
+  (c.skills||[]).forEach((s,i)=>{
+    const m=/^(\S+)\s+(Skill|Focus)$/.exec(s); if(!m) return;
+    const node=document.createElement('span');
+    node.setAttribute('itemprop', SEM_ROOT+'hasIcon');
+    node.setAttribute('itemscope','');
+    node.setAttribute('itemtype', SEM_ROOT+m[2]+'Icon');
+    node.setAttribute('itemid', SEM_ROOT+'card-'+c.id+'-icon-'+(i+1));
+    node.style.display='none';
+    semLink(node, SEM_ROOT+'specialty', semTerm('Specialty', m[1]));
+    el.appendChild(node);
+  });
+  if(c.vp!==null && c.vp!==undefined) semMeta(el, SEM_ROOT+'victoryPoints', String(c.vp));
+  if(c.position_indicator) semLink(el, SEM_ROOT+'startingPosition', semTerm('Pos', c.position_indicator));
+  if(c.away_team) semMeta(el, SEM_ROOT+'awayTeamSize', String(c.away_team));
+}
+// --- SEMANTIC_MICRODATA_END ---------------------------------------------
+
 function buildPillCard(c){
   const SUIT_COL={'Person':'#c9ab35','Ally':'#9b6ecf','Ship':'#7a8aaa','Cargo':'#3a6aaa','Location':'#4ac48a','Encounter':'#d4699f','Incident':'#e05a5a','Captain':'#d7dce6','Directive':'#8494ad','Status':'#88aacc'};
   const el=document.createElement('div');
   el.className='card-entry'; el.dataset.suit=c.suit||'';
+  semAnnotate(el, c);
   const col=SUIT_COL[c.suit]||'#8494ad';
   const sk_=(c.suit||'').toLowerCase();
   const sIcon=CARDFACE.suit[sk_]?'<img src="'+CARDFACE.suit[sk_]+'" alt="">':'';
@@ -1527,6 +1592,7 @@ function buildPillCard(c){
 function buildImgCard(c){
   const el=document.createElement('div');
   el.className='card-img-entry';
+  semAnnotate(el, c);
   const folder = c.imgBox ? BOX_FOLDER[c.imgBox] : null;
   const src = (folder && c.filename) ? (IMG_BASE+'/'+folder+'/'+c.filename) : '';
   // Try to load the real card image; if it 404s, swap in the NO IMAGE placeholder.
